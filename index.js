@@ -116,7 +116,7 @@ function getBlockchainInfo(callback) {
       }
       network = ret.result.chain;
       if (network === 'regtest') networkParam = 'testnet';
-      else if (network === 'testnet') networkParam = 'testnet';
+      else if (network === 'test') networkParam = 'testnet';
       else networkParam = 'livenet';
 
       if (network === 'regtest') Network.enableRegtest();
