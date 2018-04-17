@@ -1,0 +1,38 @@
+{
+  "name": "bch-nuker",
+  "version": "0.0.1",
+  "description": "Creates lots of Bitcoin transactions.",
+  "author": "Joshua Yabut <yabut.joshua@gmail.com>",
+  "main": "index.js",
+  "files": [],
+  "scripts": {},
+  "keywords": [
+    "bitcoin",
+    "transaction",
+    "address",
+    "p2p",
+    "ecies",
+    "cryptocurrency",
+    "blockchain",
+    "payment",
+    "bip21",
+    "bip32",
+    "bip37",
+    "bip69",
+    "bip70",
+    "multisig"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bitcoincashjs/bch-nuker.git"
+  },
+  "browser": {
+    "request": "browser-request"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "bitcoincashjs": "git+https://github.com/joshuayabut/bitcoincashjs.git",
+    "bitcoind-rpc": "^0.7.1"
+  },
+  "license": "MIT"
+}
