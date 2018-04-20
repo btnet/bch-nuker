@@ -202,7 +202,7 @@ async function sendRawTransaction(tx, callback) {
   }
 }
 
-function sendQueuedTransactions(callback) {
+async function sendQueuedTransactions(callback) {
   function sendRequest(obj) {
     rpc.sendRawTransaction([obj.tx.toString()], function (err, ret) {
       if (err) {
@@ -217,7 +217,7 @@ function sendQueuedTransactions(callback) {
     await sendRequest(obj);
   }
   for (var i = 0; i < txArray.length; i++) {
-    execute(txArray[i]);
+    await execute(txArray[i]);
     sentTxArray.push(txArray[i]);
   }
 }
@@ -243,7 +243,7 @@ function promisePrivateKey(tempUtxos, privateKey) {
 
     // Create 520 byte redeem script
     var redeemScript = Script();
-    for (var i = 0; i < 82; i++) {
+    for (var i = 0; i < 86; i++) {
       redeemScript.add(new Buffer('fe7f', 'hex'))
       redeemScript.add('OP_4')
       redeemScript.add(0x80)
@@ -274,7 +274,7 @@ function promisePrivateKey(tempUtxos, privateKey) {
     var transaction = new bitcoincashjs.Transaction()
       .from(tempUtxos)
       .change(tempUtxos[0].address)
-    for (var i = 0; i < 999; i++) { // 1000 outputs
+    for (var i = 0; i < 1000; i++) { // 1000 outputs
       transaction.to(outAddress, Math.floor(amount/1000));
     }
     transaction.to(outAddress, Math.floor(amount/1000));
