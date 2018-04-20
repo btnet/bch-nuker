@@ -21,24 +21,20 @@ var config = {
   port: '18332', // 18332
 };
 
-var levels = {
-  redeem: -1,
-  error: 0,
-  warn: 1,
-  info: 2,
-  verbose: 3,
-  debug: 4,
-  silly: 5,
-}
-
 var logger = winston.createLogger({
   level: 'info',
-  levels: levels,
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.File({ filename: 'nuke.log' }),
+    new winston.transports.Console({ format: winston.format.simple() })
+  ]
+});
+
+var redeemLogger = winston.createLogger({
+  level: 'info',
   format: winston.format.json(),
   transports: [
     new winston.transports.File({ filename: 'redeem.log', level: 'redeem' }),
-    new winston.transports.File({ filename: 'nuke.log' }),
-    new winston.transports.Console({ format: winston.format.simple() })
   ]
 });
 
@@ -114,24 +110,23 @@ function getPrivateKeys(addresses, callback) {
   }
 }
 
-function createRawTransaction(txParams, unsignedTx, callback) {
-  function sendRequest(params, unsignedTx) {
-    rpc.createRawTransaction(params.inputs, params.address, function (err, ret) {
+async function createRawTransaction(txParams, unsignedP2shTx) {
+  function sendRequest() {
+return new Promise(res => {
+    rpc.createRawTransaction(txParams.inputs, txParams.address, async function (err, ret) {
       if (err) {
-        logger.error(err);
+        logger.error('createRawTransaction():', err);
         return;
       }
-      unsignedTx.txhex = ret.result;
-      if (callback) {
-        callback(signRawTransactions(unsignedTx, sendRawTransaction));
-      }
-      return signRawTransactions(unsignedTx, sendRawTransaction);
+      unsignedP2shTx.txhex = ret.result;
+      await signRawTransactions(unsignedP2shTx, res);
     });
+});
   }
-  var execute = async (params, unsignedTx) => {
-    await sendRequest(params, unsignedTx);
+  var execute = async () => {
+    await sendRequest();
   }
-  execute(txParams, unsignedTx);
+  await execute();
 }
 
 function getBlockchainInfo(callback) {
@@ -157,33 +152,28 @@ function getBlockchainInfo(callback) {
   execute(callback);
 }
 
-function signRawTransactions(unsignedTx, callback) {
-  function sendRequest(unsignedTx) {
+async function signRawTransactions(unsignedTx, callback) {
+  function sendRequest() {
     var amount = unsignedTx.amount;
     rpc.signRawTransaction(unsignedTx.txhex,
         [{"txid": unsignedTx.txid, "vout": unsignedTx.vout, "scriptPubKey": unsignedTx.scriptPubKey,
           "redeemScript": unsignedTx.redeemScript, "amount": amount}], [unsignedTx.privateKey],
-            function (err, ret) {
+            async function (err, ret) {
       if (err) {
-        logger.error(err);
+        logger.error('signRawTransactions():', err);
         return;
       }
-      if (callback) return callback(ret.result.hex);
-      return ret.result.hex;
+      await callback(sendRawTransaction(ret.result.hex));
     });
   }
-  var execute = async (unsignedTx) => {
-    await sendRequest(unsignedTx);
+  var execute = async () => {
+    await sendRequest();
   }
-  if (typeof unsignedTx !== 'undefined') execute(unsignedTx);
-  else {
-    for (var i = 0; i < unsignedTxArray.length; i++) {
-      execute(unsignedTxArray[i]);
-    }
-  }
+
+  await execute();
 }
 
-function sendRawTransaction(tx, callback) {
+async function sendRawTransaction(tx, callback) {
   function sendRequest(obj) {
     rpc.sendRawTransaction(obj, true, function (err, ret) {
       if (err) {
@@ -191,19 +181,22 @@ function sendRawTransaction(tx, callback) {
         return;
       }
       logger.info('Stress tx sent: ' + ret.result);
-      if (callback) return callback(ret.result);
+      if (typeof callback !== 'undefined') {
+        return callback(ret.result);
+      }
       return ret.result;
     });
   }
+
   var execute = async (obj) => {
     await sendRequest(obj);
   }
   if (typeof tx !== 'undefined') {
-    execute(tx);
+    await execute(tx);
   }
   else {
     for (var i = 0; i < txArray.length; i++) {
-      execute(txArray[i].tx.toString());
+      await execute(txArray[i].tx.toString());
       sentTxArray.push(txArray[i]);
     }
   }
@@ -288,7 +281,7 @@ function promisePrivateKey(tempUtxos, privateKey) {
     transaction.fee(transaction.getFee());
     transaction.sign(privateKeys);
     txArray.push({tx: transaction, redeemScript: redeemScript, keyPair: tempKeyPair});
-    logger.redeem({tx: transaction, redeemScript: redeemScript, keyPair: tempKeyPair});
+    redeemLogger.info({tx: transaction, redeemScript: redeemScript, keyPair: tempKeyPair});
   });
 }
 
@@ -320,6 +313,14 @@ function generateTransactions(callback) {
     return;
   });
 }
+
+async function promiseTxSender(callback) {
+  for (var i = 0; i < promises.length; i++) {
+    await createRawTransaction(promises[i].rawTxParams, promises[i].unsignedP2shTx);
+  }
+  callback();
+}
+
 
 logger.info(`
 ██████╗  ██████╗██╗  ██╗    ███╗   ██╗██╗   ██╗██╗  ██╗███████╗██████╗
@@ -354,6 +355,7 @@ var keyPairArray = [];
 var network;
 var networkParam;
 var outKeyPairArray = [];
+var promises = [];
 var sentTxArray = [];
 var signedTxArray = [];
 var txArray = [];
@@ -507,12 +509,20 @@ function asyncRun() {
           var tempAddrObject = {};
           var outputAmount  = (txAmount * feeMultiplier).toFixed(8);
           rawTxParams["address"][address] = outputAmount;
-          new Promise(res => {
-            var txHex = createRawTransaction(rawTxParams, unsignedP2shTxArray[0], res);
-          });
+          promises.push({'rawTxParams': rawTxParams, 'unsignedP2shTx': unsignedP2shTxArray[0]});
         }
+        res();
       });
     })
+    .then(function() {
+      return new Promise(res => {
+        promiseTxSender(res);
+      });
+    })
+    .then(function() {
+      logger.info('Mission complete.');
+      process.exit(0);
+    });
   });
 }
 asyncRun();
