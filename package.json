@@ -29,7 +29,9 @@
   "browser": {
     "request": "browser-request"
   },
-  "dependencies": {},
+  "dependencies": {
+    "winston": "^3.0.0-rc4"
+  },
   "devDependencies": {
     "bitcoincashjs": "git+https://github.com/joshuayabut/bitcoincashjs.git",
     "bitcoind-rpc": "^0.7.1"

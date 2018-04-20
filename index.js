@@ -6,8 +6,10 @@ var Network = bitcoincashjs.Networks;
 var Output = bitcoincashjs.Output;
 var Script = bitcoincashjs.Script;
 var readline = require('readline');
+var winston = require('winston');
 
 bitcoincashjs.Transaction.FEE_PER_KB = 50000;
+
 // Bitcoind configuration
 // Mainnet port: 8332
 // Testnet/Regtest port: 18332
@@ -19,18 +21,40 @@ var config = {
   port: '18332', // 18332
 };
 
+var levels = {
+  redeem: -1,
+  error: 0,
+  warn: 1,
+  info: 2,
+  verbose: 3,
+  debug: 4,
+  silly: 5,
+}
+
+var logger = winston.createLogger({
+  level: 'info',
+  levels: levels,
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.File({ filename: 'redeem.log', level: 'redeem' }),
+    new winston.transports.File({ filename: 'nuke.log' }),
+    new winston.transports.Console({ format: winston.format.simple() })
+  ]
+});
+
 var rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
 });
+
 var rpc = new bitcoind(config);
 var txids = [];
 
 function generateBlocks(num, callback) {
-  console.log('Generating ' + num + ' block(s)... ');
+  logger.info('Generating ' + num + ' block(s)... ');
   rpc.generate([num], function (err, ret) {
     if (err) {
-      console.error(err);
+      logger.error(err);
       return;
     }
     if (callback) callback();
@@ -39,10 +63,10 @@ function generateBlocks(num, callback) {
 }
 
 function gatherUnspent(minConf, callback) {
-  console.log('Gathering UTXOs... ');
+  logger.info('Gathering UTXOs... ');
   rpc.listUnspent([minConf], function (err, ret) {
     if (err) {
-      console.error(err);
+      logger.error(err);
       return;
     }
     var tempUtxoArray = [];
@@ -59,7 +83,7 @@ function gatherUnspent(minConf, callback) {
         tempUtxoArray.push(utxo);
       }
     }
-    console.log('Adding ' + tempUtxoArray.length + ' UTXOs...');
+    logger.info('Adding ' + tempUtxoArray.length + ' UTXOs...');
     utxoArray = tempUtxoArray;
     if (callback) callback();
     return;
@@ -72,7 +96,7 @@ function getPrivateKeys(addresses, callback) {
   function sendRequest(address, callback) {
     rpc.dumpPrivKey([address], function (err, ret) {
       if (err) {
-        console.error(err);
+        logger.error(err);
         return;
       }
       privateKeyArray.push(ret.result);
@@ -90,14 +114,17 @@ function getPrivateKeys(addresses, callback) {
   }
 }
 
-function createRawTransaction(txParams, unsignedTx) {
+function createRawTransaction(txParams, unsignedTx, callback) {
   function sendRequest(params, unsignedTx) {
     rpc.createRawTransaction(params.inputs, params.address, function (err, ret) {
       if (err) {
-        console.error(err);
+        logger.error(err);
         return;
       }
       unsignedTx.txhex = ret.result;
+      if (callback) {
+        callback(signRawTransactions(unsignedTx, sendRawTransaction));
+      }
       return signRawTransactions(unsignedTx, sendRawTransaction);
     });
   }
@@ -111,7 +138,7 @@ function getBlockchainInfo(callback) {
   function sendRequest(callback) {
     rpc.getBlockchainInfo(function (err, ret) {
       if (err) {
-        console.error(err);
+        logger.error(err);
         return;
       }
       network = ret.result.chain;
@@ -138,7 +165,7 @@ function signRawTransactions(unsignedTx, callback) {
           "redeemScript": unsignedTx.redeemScript, "amount": amount}], [unsignedTx.privateKey],
             function (err, ret) {
       if (err) {
-        console.error(err);
+        logger.error(err);
         return;
       }
       if (callback) return callback(ret.result.hex);
@@ -160,10 +187,10 @@ function sendRawTransaction(tx, callback) {
   function sendRequest(obj) {
     rpc.sendRawTransaction(obj, true, function (err, ret) {
       if (err) {
-        console.error(err);
+        logger.error(err);
         return;
       }
-      console.log('Stress tx sent:', ret.result);
+      logger.info('Stress tx sent: ' + ret.result);
       if (callback) return callback(ret.result);
       return ret.result;
     });
@@ -186,7 +213,7 @@ function sendQueuedTransactions(callback) {
   function sendRequest(obj) {
     rpc.sendRawTransaction([obj.tx.toString()], function (err, ret) {
       if (err) {
-        console.error(err);
+        logger.error(err);
         return;
       }
       if (callback) return callback(ret.result);
@@ -204,7 +231,7 @@ function sendQueuedTransactions(callback) {
 
 function broadcastTransactions(callback) {
   // Broadcast transactions
-  console.log('Broadcasting ' + txArray.length + ' transactions...');
+  logger.info('Broadcasting ' + txArray.length + ' transactions...');
     sendQueuedTransactions();
   if (callback) return callback();
 }
@@ -261,12 +288,13 @@ function promisePrivateKey(tempUtxos, privateKey) {
     transaction.fee(transaction.getFee());
     transaction.sign(privateKeys);
     txArray.push({tx: transaction, redeemScript: redeemScript, keyPair: tempKeyPair});
+    logger.redeem({tx: transaction, redeemScript: redeemScript, keyPair: tempKeyPair});
   });
 }
 
 function generateTransactions(callback) {
   // Generating transactions
-  console.log('Generating transactions...');
+  logger.info('Generating transactions...');
   var makeTransaction = async () => {
     var tempUtxoArray = [];
     for (var i = 0; i < p2shUtxos / 1000; i++) {
@@ -275,7 +303,7 @@ function generateTransactions(callback) {
       tempUtxoArray[i] = [];
       do {
         if (utxoArray.length === 0) {
-          console.log('Warning: not enough UTXOs to generate transactions');
+          logger.warn('Warning: not enough UTXOs to generate transactions');
           process.exit(1);
         }
         var tempUtxo = utxoArray.pop();
@@ -293,7 +321,7 @@ function generateTransactions(callback) {
   });
 }
 
-console.log(`
+logger.info(`
 ██████╗  ██████╗██╗  ██╗    ███╗   ██╗██╗   ██╗██╗  ██╗███████╗██████╗
 ██╔══██╗██╔════╝██║  ██║    ████╗  ██║██║   ██║██║ ██╔╝██╔════╝██╔══██╗
 ██████╔╝██║     ███████║    ██╔██╗ ██║██║   ██║█████╔╝ █████╗  ██████╔╝
@@ -302,7 +330,7 @@ console.log(`
 ╚═════╝  ╚═════╝╚═╝  ╚═╝    ╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
 `);
 
-console.log(`                      █████████
+logger.info(`                      █████████
   ███████          ███▒▒▒▒▒▒▒▒███
   █▒▒▒▒▒▒█       ███▒▒▒▒▒▒▒▒▒▒▒▒▒███
    █▒▒▒▒▒▒█    ██▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒██
@@ -317,7 +345,7 @@ console.log(`                      █████████
  █▒▒▒███████████▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒██
  ██▒▒▒▒▒▒▒▒▒▒████▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒█
   ████████████   █████████████████`);
-console.log('Press ctrl-c at any time to exit my bro\n');
+logger.info('Press ctrl-c at any time to exit my bro\n');
 
 // Initialize
 var p2shTxs;
@@ -344,7 +372,7 @@ function asyncRun() {
         return new Promise(res => {
           rl.question('Regtest detected: How many blocks are we generating? (default 500): ', function(input) {
             if (!(parseInt(input))) {
-              console.log('Failed to parse input');
+              logger.error('Failed to parse input');
               process.exit(1);
             }
             blocks = parseInt(input);
@@ -362,7 +390,7 @@ function asyncRun() {
       return new Promise(res => {
         rl.question('How many P2SH UTXOs are we generating mate (input x 1000)? : ', function(input) {
           if (!(parseInt(input))) {
-            console.log('Failed to parse input');
+            logger.error('Failed to parse input');
             process.exit(1);
           }
           p2shUtxos = parseInt(input) * 1000;
@@ -372,7 +400,7 @@ function asyncRun() {
     })
     .then(function() {
       // Generate new keypairs
-      console.log('Generating keypairs for P2SH addresses...');
+      logger.info('Generating keypairs for P2SH addresses...');
       for (var i = 0; i < p2shUtxos; i++) {
         var privateP2shKey = new bitcoincashjs.PrivateKey(networkParam);
         var publicP2shKey = privateP2shKey.toPublicKey(networkParam);
@@ -397,7 +425,7 @@ function asyncRun() {
           generateBlocks(p2shUtxos/1000, res);
         }
         else {
-          console.log('You should wait for transactions to confirm prior to continuing.');
+          logger.info('You should wait for transactions to confirm prior to continuing.');
         }
       })
     })
@@ -405,7 +433,7 @@ function asyncRun() {
       return new Promise(res => {
         rl.question('How many P2SH inputs should we include per transaction (default 25)?: ', function(input) {
           if (!(parseInt(input)) || parseInt(input) > p2shUtxos) {
-            console.log('Failed to parse input (are you sure we have enough P2SH UTXOs generated?)');
+            logger.error('Failed to parse input (are you sure we have enough P2SH UTXOs generated?)');
             process.exit(1);
           }
           p2shTxs = parseInt(input);
@@ -449,7 +477,7 @@ function asyncRun() {
         }
 
         // Loop for generating and broadcasting stress transactions
-        console.log('Generating ' + Math.ceil(p2shUtxos/p2shTxs) + ' stress transactions...');
+        logger.info('Generating ' + Math.ceil(p2shUtxos/p2shTxs) + ' stress transactions...');
         for (var x = 0; x < Math.ceil(p2shUtxos/p2shTxs); x++) {
           var txAmount = 0;
           var address = utxoArray[0].address; // same address
@@ -479,7 +507,9 @@ function asyncRun() {
           var tempAddrObject = {};
           var outputAmount  = (txAmount * feeMultiplier).toFixed(8);
           rawTxParams["address"][address] = outputAmount;
-          var txHex = createRawTransaction(rawTxParams, unsignedP2shTxArray[0]);
+          new Promise(res => {
+            var txHex = createRawTransaction(rawTxParams, unsignedP2shTxArray[0], res);
+          });
         }
       });
     })
