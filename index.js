@@ -417,7 +417,9 @@ function asyncRun() {
     })
     .then(function() {
       return new Promise(res => {
-        broadcastTransactions(res);
+        rl.question('Press enter to broadcast transactions: ', function(input) {
+          broadcastTransactions(res);
+        });
       });
     })
     .then(function() {
@@ -427,7 +429,9 @@ function asyncRun() {
           generateBlocks(p2shUtxos/1000, res);
         }
         else {
-          logger.info('You should wait for transactions to confirm prior to continuing.');
+          rl.question('Wait for transactions to confirm before continuing. Press enter to continue: ', function(input) {
+            res();
+          });
         }
       })
     })
