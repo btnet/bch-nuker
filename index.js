@@ -472,7 +472,7 @@ function asyncRun() {
         for (var i = 0; i < sentArray.length; i++) {
           var unsignedP2shUtxo = {
             "txid": sentArray[i].sentTx.toObject().hash,
-            "vout": 0,
+            "vout": sentArray[i].sentTx.toObject().inputs[0].outputIndex,
             "scriptPubKey": sentArray[i].sentTx.toObject().outputs[0].script,
             "redeemScript": sentArray[i].sentRedeemScript.toHex(),
             "amount": sentArray[i].sentTx.toObject().outputs[0].satoshis / 100000000,
