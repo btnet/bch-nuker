@@ -34,7 +34,7 @@ var redeemLogger = winston.createLogger({
   level: 'info',
   format: winston.format.json(),
   transports: [
-    new winston.transports.File({ filename: 'redeem.log', level: 'redeem' }),
+    new winston.transports.File({ filename: 'redeem.log', level: 'info' }),
   ]
 });
 
@@ -204,6 +204,7 @@ async function sendRawTransaction(tx, callback) {
 
 async function sendQueuedTransactions(callback) {
   function sendRequest(obj) {
+    logger.info('Sending tx: ' + obj.tx.toObject().hash);
     rpc.sendRawTransaction([obj.tx.toString()], function (err, ret) {
       if (err) {
         logger.error(err);
@@ -270,14 +271,13 @@ function promisePrivateKey(tempUtxos, privateKey) {
     for (var i = 0; i < tempUtxos.length; i++) {
       amount += tempUtxos[i].satoshis;
     }
-    amount = amount * 0.98; // pre-allocate 2% for fees
+    amount = amount * 0.96; // pre-allocate 4% for fees
     var transaction = new bitcoincashjs.Transaction()
       .from(tempUtxos)
       .change(tempUtxos[0].address)
     for (var i = 0; i < 1000; i++) { // 1000 outputs
       transaction.to(outAddress, Math.floor(amount/1000));
     }
-    transaction.to(outAddress, Math.floor(amount/1000));
     transaction.fee(transaction.getFee());
     transaction.sign(privateKeys);
     txArray.push({tx: transaction, redeemScript: redeemScript, keyPair: tempKeyPair});
@@ -470,16 +470,22 @@ function asyncRun() {
 
         // Build UTXO set to redeem P2SH transaction
         for (var i = 0; i < sentArray.length; i++) {
-          var unsignedP2shUtxo = {
-            "txid": sentArray[i].sentTx.toObject().hash,
-            "vout": sentArray[i].sentTx.toObject().inputs[0].outputIndex,
-            "scriptPubKey": sentArray[i].sentTx.toObject().outputs[0].script,
-            "redeemScript": sentArray[i].sentRedeemScript.toHex(),
-            "amount": sentArray[i].sentTx.toObject().outputs[0].satoshis / 100000000,
-            "privateKey": sentArray[i].sentKeyPair.privateKey.toWIF(networkParam),
-          };
+          var sentKeyPairObject = sentArray[i].sentKeyPair;
+          var sentRedeemScriptObject = sentArray[i].sentRedeemScript;
+          var sentTxObject = sentArray[i].sentTx.toObject();
+          var outputLength = sentArray[i].sentTx.toObject().outputs.length;
+          for (var n = 0; n < outputLength; n++) {
+            var unsignedP2shUtxo = {
+              "txid": sentTxObject.hash,
+              "vout": sentTxObject.inputs[0].outputIndex,
+              "scriptPubKey": sentTxObject.outputs[n].script,
+              "redeemScript": sentRedeemScriptObject.toHex(),
+              "amount": sentTxObject.outputs[n].satoshis / 100000000,
+              "privateKey": sentKeyPairObject.privateKey.toWIF(networkParam),
+            };
           txAmount += unsignedP2shUtxo.amount;
           unsignedP2shTxArray.push(unsignedP2shUtxo);
+          }
         }
 
         // Loop for generating and broadcasting stress transactions
