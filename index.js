@@ -372,14 +372,18 @@ function asyncRun() {
     .then(function() {
       if (network === 'regtest') {
         return new Promise(res => {
-          rl.question('Regtest detected: How many blocks are we generating? (default 500): ', function(input) {
-            if (!(parseInt(input))) {
-              logger.error('Failed to parse input');
-              process.exit(1);
-            }
-            blocks = parseInt(input);
-            generateBlocks(blocks, res);
-          });
+          var recursiveReadLine = function () {
+            rl.question('Regtest detected: How many blocks are we generating? (default 500): ', function(input) {
+              if (!(parseInt(input))) {
+                logger.error('Failed to parse input');
+                return recursiveReadLine();
+              }
+              escape = true;
+              blocks = parseInt(input);
+              generateBlocks(blocks, res);
+            });
+          }
+          recursiveReadLine();
         })
       }
     })
@@ -390,14 +394,17 @@ function asyncRun() {
     })
     .then(function() {
       return new Promise(res => {
-        rl.question('How many P2SH UTXOs are we generating mate (input x 1000)? : ', function(input) {
-          if (!(parseInt(input))) {
-            logger.error('Failed to parse input');
-            process.exit(1);
-          }
-          p2shUtxos = parseInt(input) * 1000;
-          res();
-        });
+        var recursiveReadLine = function () {
+          rl.question('How many P2SH UTXOs are we generating mate (input x 1000)? : ', function(input) {
+            if (!(parseInt(input))) {
+              logger.error('Failed to parse input');
+              return recursiveReadLine();
+            }
+            p2shUtxos = parseInt(input) * 1000;
+            res();
+          });
+        }
+        recursiveReadLine();
       })
     })
     .then(function() {
@@ -437,14 +444,17 @@ function asyncRun() {
     })
     .then(function() {
       return new Promise(res => {
-        rl.question('How many P2SH inputs should we include per transaction (default 25)?: ', function(input) {
-          if (!(parseInt(input)) || parseInt(input) > p2shUtxos) {
-            logger.error('Failed to parse input (are you sure we have enough P2SH UTXOs generated?)');
-            process.exit(1);
-          }
-          p2shTxs = parseInt(input);
-          res();
-        });
+        var recursiveReadLine = function () {
+          rl.question('How many P2SH inputs should we include per transaction (default 25)?: ', function(input) {
+            if (!(parseInt(input)) || parseInt(input) > p2shUtxos) {
+              logger.error('Failed to parse input (are you sure we have enough P2SH UTXOs generated?)');
+              return recursiveReadLine();
+            }
+            p2shTxs = parseInt(input);
+            res();
+          });
+        }
+        recursiveReadLine();
       })
     })
     .then(function() {
