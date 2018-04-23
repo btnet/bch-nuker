@@ -223,10 +223,10 @@ async function sendQueuedTransactions(callback) {
   }
 }
 
-function broadcastTransactions(callback) {
+async function broadcastTransactions(callback) {
   // Broadcast transactions
   logger.info('Broadcasting ' + txArray.length + ' transactions...');
-    sendQueuedTransactions();
+    await sendQueuedTransactions();
   if (callback) return callback();
 }
 
