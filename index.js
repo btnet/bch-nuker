@@ -1,19 +1,17 @@
-var bitcoincashjs = require('bitcoincashjs');
-var bitcoind = require('bitcoind-rpc');
-var Address = bitcoincashjs.Address;
-var Hash = bitcoincashjs.crypto.Hash;
-var Network = bitcoincashjs.Networks;
-var Output = bitcoincashjs.Output;
-var Script = bitcoincashjs.Script;
-var readline = require('readline');
-var winston = require('winston');
+const bitcoincashjs = require('bitcoincashjs');
+const bitcoind = require('bitcoind-rpc');
+const Address = bitcoincashjs.Address;
+const Network = bitcoincashjs.Networks;
+const Script = bitcoincashjs.Script;
+const readline = require('readline');
+const winston = require('winston');
 
 bitcoincashjs.Transaction.FEE_PER_KB = 50000;
 
 // Bitcoind configuration
 // Mainnet port: 8332
 // Testnet/Regtest port: 18332
-var config = {
+const config = {
   protocol: 'http',
   user: 'user',
   pass: 'passasdasdsa123',
@@ -21,7 +19,7 @@ var config = {
   port: '18332', // 18332
 };
 
-var logger = winston.createLogger({
+const logger = winston.createLogger({
   level: 'info',
   format: winston.format.json(),
   transports: [
@@ -30,7 +28,7 @@ var logger = winston.createLogger({
   ]
 });
 
-var redeemLogger = winston.createLogger({
+const redeemLogger = winston.createLogger({
   level: 'info',
   format: winston.format.json(),
   transports: [
@@ -38,23 +36,22 @@ var redeemLogger = winston.createLogger({
   ]
 });
 
-var rl = readline.createInterface({
+const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
 });
 
-var rpc = new bitcoind(config);
-var txids = [];
+const rpc = new bitcoind(config);
 
 function generateBlocks(num, callback) {
   logger.info('Generating ' + num + ' block(s)... ');
-  rpc.generate([num], function (err, ret) {
+  rpc.generate([num], function (err) {
     if (err) {
       logger.error(err);
       return;
     }
     if (callback) callback();
-    return;
+
   });
 }
 
@@ -65,11 +62,11 @@ function gatherUnspent(minConf, callback) {
       logger.error(err);
       return;
     }
-    var tempUtxoArray = [];
+    let tempUtxoArray = [];
 
-    for (var i = 0; i < ret.result.length; i++) {
+    for (let i = 0; i < ret.result.length; i++) {
       if (ret.result[i].amount > 0.00000546) {
-        var utxo = new bitcoincashjs.Transaction.UnspentOutput({
+        let utxo = new bitcoincashjs.Transaction.UnspentOutput({
           "txid" : ret.result[i].txid,
           "vout" : ret.result[i].vout,
           "address" : Address.fromString(ret.result[i].address, networkParam, 'pubkeyhash', Address.CashAddrFormat),
@@ -82,12 +79,12 @@ function gatherUnspent(minConf, callback) {
     logger.info('Adding ' + tempUtxoArray.length + ' UTXOs...');
     utxoArray = tempUtxoArray;
     if (callback) callback();
-    return;
+
   });
 }
 
 function getPrivateKeys(addresses, callback) {
-  var privateKeyArray = [];
+  let privateKeyArray = [];
 
   function sendRequest(address, callback) {
     rpc.dumpPrivKey([address], function (err, ret) {
@@ -97,15 +94,15 @@ function getPrivateKeys(addresses, callback) {
       }
       privateKeyArray.push(ret.result);
       if (callback) return callback(privateKeyArray);
-      return;
+
     });
   }
 
-  var execute = async (address, callback, res) => {
+  const execute = async (address, callback, res) => {
     await sendRequest(address, callback, res);
-  }
+  };
 
-  for (var i = 0; i < addresses.length; i++) {
+  for (let i = 0; i < addresses.length; i++) {
     execute(addresses[i], callback);
   }
 }
@@ -123,9 +120,9 @@ return new Promise(res => {
     });
 });
   }
-  var execute = async () => {
+  const execute = async () => {
     await sendRequest();
-  }
+  };
   await execute();
 }
 
@@ -146,15 +143,15 @@ function getBlockchainInfo(callback) {
       return ret.result.chain;
     });
   }
-  var execute = async (callback) => {
+  const execute = async (callback) => {
     await sendRequest(callback);
-  }
+  };
   execute(callback);
 }
 
 async function signRawTransactions(unsignedTx, callback) {
   function sendRequest() {
-    var amount = unsignedTx.amount;
+    let amount = unsignedTx.amount;
     rpc.signRawTransaction(unsignedTx.txhex,
         [{"txid": unsignedTx.txid, "vout": unsignedTx.vout, "scriptPubKey": unsignedTx.scriptPubKey,
           "redeemScript": unsignedTx.redeemScript, "amount": amount}], [unsignedTx.privateKey],
@@ -166,9 +163,9 @@ async function signRawTransactions(unsignedTx, callback) {
       await callback(sendRawTransaction(ret.result.hex));
     });
   }
-  var execute = async () => {
+  const execute = async () => {
     await sendRequest();
-  }
+  };
 
   await execute();
 }
@@ -188,14 +185,14 @@ async function sendRawTransaction(tx, callback) {
     });
   }
 
-  var execute = async (obj) => {
+  const execute = async (obj) => {
     await sendRequest(obj);
-  }
+  };
   if (typeof tx !== 'undefined') {
     await execute(tx);
   }
   else {
-    for (var i = 0; i < txArray.length; i++) {
+    for (let i = 0; i < txArray.length; i++) {
       await execute(txArray[i].tx.toString());
       sentTxArray.push(txArray[i]);
     }
@@ -214,10 +211,10 @@ async function sendQueuedTransactions(callback) {
       return ret.result;
     });
   }
-  var execute = async (obj) => {
+  const execute = async (obj) => {
     await sendRequest(obj);
-  }
-  for (var i = 0; i < txArray.length; i++) {
+  };
+  for (let i = 0; i < txArray.length; i++) {
     await execute(txArray[i]);
     sentTxArray.push(txArray[i]);
   }
@@ -230,52 +227,45 @@ async function broadcastTransactions(callback) {
   if (callback) return callback();
 }
 
-function promisePrivateKey(tempUtxos, privateKey) {
-  var addresses = [];
-  var privateKeys = [];
-  return new Promise(function(resolve, reject) {
-    for (var i = 0; i < tempUtxos.length; i++) {
+function promisePrivateKey(tempUtxos) {
+  let addresses = [];
+  let privateKeys = [];
+  return new Promise(function(resolve) {
+    for (let i = 0; i < tempUtxos.length; i++) {
       addresses.push(tempUtxos[i].address.toString(Address.CashAddrFormat));
     }
     privateKeys = getPrivateKeys(addresses, resolve);
   })
   .then(function(privateKeys) {
-    var tempKeyPair = keyPairArray[0];
+    let tempKeyPair = keyPairArray[0];
 
     // Create 520 byte redeem script
-    var redeemScript = Script();
-    for (var i = 0; i < 86; i++) {
-      redeemScript.add(new Buffer('fe7f', 'hex'))
-      redeemScript.add('OP_4')
-      redeemScript.add(0x80)
+    let redeemScript = Script();
+    for (let i = 0; i < 86; i++) {
+      redeemScript.add(new Buffer('fe7f', 'hex'));
+      redeemScript.add('OP_4');
+      redeemScript.add(0x80);
       redeemScript.add('OP_DROP')
     }
-    redeemScript.add('OP_NOP')
-    redeemScript.add('OP_1')
-    redeemScript.add('OP_DROP')
+    redeemScript.add('OP_NOP');
+    redeemScript.add('OP_1');
+    redeemScript.add('OP_DROP');
     redeemScript.add('OP_1');
 
-    // Create scriptSig for input
-    var scriptSig = Script()
-      .add('OP_5')
-      .add('OP_ADD')
-      .add('OP_6')
-      .add('OP_EQUAL');
-
     // Create script hash and output address
-    var scriptHash = Script.buildScriptHashOut(redeemScript);
-    var outAddress = scriptHash.toAddress(networkParam);
+    let scriptHash = Script.buildScriptHashOut(redeemScript);
+    let outAddress = scriptHash.toAddress(networkParam);
 
     // Create P2SH transactions with OP_NUM2BIN
-    var amount = 0;
-    for (var i = 0; i < tempUtxos.length; i++) {
+    let amount = 0;
+    for (let i = 0; i < tempUtxos.length; i++) {
       amount += tempUtxos[i].satoshis;
     }
     amount = amount * 0.96; // pre-allocate 4% for fees
-    var transaction = new bitcoincashjs.Transaction()
+    let transaction = new bitcoincashjs.Transaction()
       .from(tempUtxos)
-      .change(tempUtxos[0].address)
-    for (var i = 0; i < 1000; i++) { // 1000 outputs
+      .change(tempUtxos[0].address);
+    for (let i = 0; i < 1000; i++) { // 1000 outputs
       transaction.to(outAddress, Math.floor(amount/1000));
     }
     transaction.fee(transaction.getFee());
@@ -288,34 +278,33 @@ function promisePrivateKey(tempUtxos, privateKey) {
 function generateTransactions(callback) {
   // Generating transactions
   logger.info('Generating transactions...');
-  var makeTransaction = async () => {
-    var tempUtxoArray = [];
-    for (var i = 0; i < p2shUtxos / 1000; i++) {
-      var privateKey;
-      var tempSatoshis = 0;
+  const makeTransaction = async () => {
+    let tempUtxoArray = [];
+    for (let i = 0; i < p2shUtxos / 1000; i++) {
+      let tempSatoshis = 0;
       tempUtxoArray[i] = [];
       do {
         if (utxoArray.length === 0) {
           logger.warn('Warning: not enough UTXOs to generate transactions');
           process.exit(1);
         }
-        var tempUtxo = utxoArray.pop();
+        let tempUtxo = utxoArray.pop();
         tempUtxoArray[i].push(tempUtxo);
         tempSatoshis += tempUtxo.satoshis;
       } while (tempSatoshis < 100000); // 0.001 btc
     }
-    for (var i = 0; i < tempUtxoArray.length; i++) {
-      await promisePrivateKey(tempUtxoArray[i], privateKey);
-    };
+    for (let i = 0; i < tempUtxoArray.length; i++) {
+      await promisePrivateKey(tempUtxoArray[i]);
+    }
   };
   makeTransaction().then(() => {
     if (callback) return callback();
-    return;
+
   });
 }
 
 async function promiseTxSender(callback) {
-  for (var i = 0; i < promises.length; i++) {
+  for (let i = 0; i < promises.length; i++) {
     await createRawTransaction(promises[i].rawTxParams, promises[i].unsignedP2shTx);
   }
   callback();
@@ -349,20 +338,15 @@ console.log(`                      █████████
 console.log('Press ctrl-c at any time to exit my bro\n');
 
 // Initialize
-var p2shTxs;
-var p2shUtxos;
-var keyPairArray = [];
-var network;
-var networkParam;
-var outKeyPairArray = [];
-var promises = [];
-var sentTxArray = [];
-var signedTxArray = [];
-var txArray = [];
-var txParamsArray = [];
-var unsignedTxArray = [];
-var unsignedTxArray2 = [];
-var utxoArray = [];
+let p2shTxs;
+let p2shUtxos;
+let keyPairArray = [];
+let network;
+let networkParam;
+let promises = [];
+let sentTxArray = [];
+let txArray = [];
+let utxoArray = [];
 
 function asyncRun() {
   new Promise(mainResolve => {
@@ -372,17 +356,17 @@ function asyncRun() {
     .then(function() {
       if (network === 'regtest') {
         return new Promise(res => {
-          var recursiveReadLine = function () {
+          const recursiveReadLine = function () {
             rl.question('Regtest detected: How many blocks are we generating? (default 500): ', function(input) {
               if (!(parseInt(input))) {
                 logger.error('Failed to parse input');
                 return recursiveReadLine();
               }
               escape = true;
-              blocks = parseInt(input);
+              let blocks = parseInt(input);
               generateBlocks(blocks, res);
             });
-          }
+          };
           recursiveReadLine();
         })
       }
@@ -394,7 +378,7 @@ function asyncRun() {
     })
     .then(function() {
       return new Promise(res => {
-        var recursiveReadLine = function () {
+        const recursiveReadLine = function () {
           rl.question('How many P2SH UTXOs are we generating mate (input x 1000)? : ', function(input) {
             if (!(parseInt(input))) {
               logger.error('Failed to parse input');
@@ -403,19 +387,19 @@ function asyncRun() {
             p2shUtxos = parseInt(input) * 1000;
             res();
           });
-        }
+        };
         recursiveReadLine();
       })
     })
     .then(function() {
       // Generate new keypairs
       logger.info('Generating keypairs for P2SH addresses...');
-      for (var i = 0; i < p2shUtxos; i++) {
-        var privateP2shKey = new bitcoincashjs.PrivateKey(networkParam);
-        var publicP2shKey = privateP2shKey.toPublicKey(networkParam);
+      for (let i = 0; i < p2shUtxos; i++) {
+        let privateP2shKey = new bitcoincashjs.PrivateKey(networkParam);
+        let publicP2shKey = privateP2shKey.toPublicKey(networkParam);
         keyPairArray.push({privateKey: privateP2shKey, publicKey: publicP2shKey});
       }
-      return;
+
     })
     .then(function() {
       return new Promise(res => {
@@ -424,7 +408,7 @@ function asyncRun() {
     })
     .then(function() {
       return new Promise(res => {
-        rl.question('Press enter to broadcast transactions: ', function(input) {
+        rl.question('Press enter to broadcast transactions: ', function() {
           broadcastTransactions(res);
         });
       });
@@ -436,7 +420,7 @@ function asyncRun() {
           generateBlocks(p2shUtxos/1000, res);
         }
         else {
-          rl.question('Wait for transactions to confirm before continuing. Press enter to continue: ', function(input) {
+          rl.question('Wait for transactions to confirm before continuing. Press enter to continue: ', function() {
             res();
           });
         }
@@ -444,7 +428,7 @@ function asyncRun() {
     })
     .then(function() {
       return new Promise(res => {
-        var recursiveReadLine = function () {
+        const recursiveReadLine = function () {
           rl.question('How many P2SH inputs should we include per transaction (default 25)?: ', function(input) {
             if (!(parseInt(input)) || parseInt(input) > p2shUtxos) {
               logger.error('Failed to parse input (are you sure we have enough P2SH UTXOs generated?)');
@@ -453,7 +437,7 @@ function asyncRun() {
             p2shTxs = parseInt(input);
             res();
           });
-        }
+        };
         recursiveReadLine();
       })
     })
@@ -464,28 +448,29 @@ function asyncRun() {
     })
     .then(function() {
       return new Promise(res => {
-        var inputLength = p2shTxs;
-        var inputTicker = 0;
-        var sentArray = [];
-        var ticker = 0;
-        var unsignedP2shTxArray = [];
+        let inputLength = p2shTxs;
+        let inputTicker = 0;
+        let sentArray = [];
+        let ticker = 0;
+        let unsignedP2shTxArray = [];
 
         // Grab relayed P2SH output and redeem script
-        for (var i = 0; i < sentTxArray.length; i++) {
-          var sentTx = sentTxArray[i].tx;
-          var sentRedeemScript = sentTxArray[i].redeemScript;
-          var sentKeyPair = sentTxArray[i].keyPair;
+        for (let i = 0; i < sentTxArray.length; i++) {
+          let sentTx = sentTxArray[i].tx;
+          let sentRedeemScript = sentTxArray[i].redeemScript;
+          let sentKeyPair = sentTxArray[i].keyPair;
           sentArray.push({sentTx: sentTx, sentRedeemScript: sentRedeemScript, sentKeyPair: sentKeyPair});
         }
 
         // Build UTXO set to redeem P2SH transaction
-        for (var i = 0; i < sentArray.length; i++) {
-          var sentKeyPairObject = sentArray[i].sentKeyPair;
-          var sentRedeemScriptObject = sentArray[i].sentRedeemScript;
-          var sentTxObject = sentArray[i].sentTx.toObject();
-          var outputLength = sentArray[i].sentTx.toObject().outputs.length;
-          for (var n = 0; n < outputLength; n++) {
-            var unsignedP2shUtxo = {
+        let txAmount = 0;
+        for (let i = 0; i < sentArray.length; i++) {
+          let sentKeyPairObject = sentArray[i].sentKeyPair;
+          let sentRedeemScriptObject = sentArray[i].sentRedeemScript;
+          let sentTxObject = sentArray[i].sentTx.toObject();
+          let outputLength = sentArray[i].sentTx.toObject().outputs.length;
+          for (let n = 0; n < outputLength; n++) {
+            let unsignedP2shUtxo = {
               "txid": sentTxObject.hash,
               "vout": sentTxObject.inputs[0].outputIndex,
               "scriptPubKey": sentTxObject.outputs[n].script,
@@ -500,21 +485,21 @@ function asyncRun() {
 
         // Loop for generating and broadcasting stress transactions
         logger.info('Generating ' + Math.ceil(p2shUtxos/p2shTxs) + ' stress transactions...');
-        for (var x = 0; x < Math.ceil(p2shUtxos/p2shTxs); x++) {
-          var txAmount = 0;
-          var address = utxoArray[0].address; // same address
-          var feeMultiplier;
+        for (let x = 0; x < Math.ceil(p2shUtxos/p2shTxs); x++) {
+          let txAmount = 0;
+          let address = utxoArray[0].address; // same address
+          let feeMultiplier;
           if (txAmount > 100) feeMultiplier = 0.98; // 2%
           else if (txAmount > 1) feeMultiplier = 0.96; // 4%
           else feeMultiplier = 0.94; // 6%
 
           // Params for createRawTransaction()
           if (x === Math.ceil(p2shUtxos/(p2shTxs)) - 1) inputLength = (p2shUtxos - (x * p2shTxs));
-          var rawTxParams = {};
+          let rawTxParams = {};
           rawTxParams["inputs"] = [];
 
-          for (i = 0; i < inputLength; i++) {
-            var addInput = {
+          for (let i = 0; i < inputLength; i++) {
+            let addInput = {
               "txid": unsignedP2shTxArray[ticker].txid,
               "vout": inputTicker
             };
@@ -526,9 +511,7 @@ function asyncRun() {
             }
           }
           rawTxParams["address"] = {};
-          var tempAddrObject = {};
-          var outputAmount  = (txAmount * feeMultiplier).toFixed(8);
-          rawTxParams["address"][address] = outputAmount;
+          rawTxParams["address"][address] = (txAmount * feeMultiplier).toFixed(8);
           promises.push({'rawTxParams': rawTxParams, 'unsignedP2shTx': unsignedP2shTxArray[0]});
         }
         res();
