@@ -18,7 +18,7 @@ curl -L https://npmjs.org/install.sh | sudo sh
 
 Clone bch-nuker repository and install dependencies
 ```
-git clone https://github.com/joshuayabut/bch-nuker.git
+git clone https://github.com/btnet/bch-nuker.git
 cd bch-nuker
 npm install
 ```
